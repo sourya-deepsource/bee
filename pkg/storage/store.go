@@ -134,7 +134,7 @@ type Storer interface {
 	HasMulti(ctx context.Context, addrs ...swarm.Address) (yes []bool, err error)
 	Set(ctx context.Context, mode ModeSet, addrs ...swarm.Address) (err error)
 	LastPullSubscriptionBinID(bin uint8) (id uint64, err error)
-	SubscribePull(ctx context.Context, bin uint8, since, until uint64) (c <-chan Descriptor, stop func())
+	PullSubscriber
 	SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop func())
 	io.Closer
 }
@@ -145,6 +145,10 @@ type Putter interface {
 
 type Getter interface {
 	Get(ctx context.Context, mode ModeGet, addr swarm.Address) (ch swarm.Chunk, err error)
+}
+
+type PullSubscriber interface {
+	SubscribePull(ctx context.Context, bin uint8, since, until uint64) (c <-chan Descriptor, stop func())
 }
 
 // StateStorer defines methods required to get, set, delete values for different keys

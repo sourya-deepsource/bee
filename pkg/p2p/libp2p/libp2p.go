@@ -50,6 +50,7 @@ type Service struct {
 	peers            *peerRegistry
 	peerHandler      func(context.Context, swarm.Address) error
 	conectionBreaker breaker.Interface
+	services         []ProtocolService
 	logger           logging.Logger
 	tracer           *tracing.Tracer
 }
@@ -202,6 +203,8 @@ func New(ctx context.Context, o Options) (*Service, error) {
 		}
 
 		_ = stream.Close()
+
+		panic("notify the services that peer has dialed in")
 		remoteMultiaddr, err := ma.NewMultiaddr(fmt.Sprintf("%s/p2p/%s", stream.Conn().RemoteMultiaddr().String(), peerID.Pretty()))
 		if err != nil {
 			s.logger.Debugf("multiaddr error: handle %s: %v", peerID, err)
@@ -235,6 +238,14 @@ func New(ctx context.Context, o Options) (*Service, error) {
 	h.Network().Notify(peerRegistry)       // update peer registry on network events
 	h.Network().Notify(s.handshakeService) // update handshake service on network events
 	return s, nil
+}
+
+func (s *Service) AddService(service ProtocolService) {
+
+	s.services = append(s.services, service)
+
+	// todo: refactor service.Start to node.Start probably
+	service.Start()
 }
 
 func (s *Service) AddProtocol(p p2p.ProtocolSpec) (err error) {
@@ -341,6 +352,13 @@ func (s *Service) Connect(ctx context.Context, addr ma.Multiaddr) (overlay swarm
 		}
 
 		return i.Address, nil
+	}
+
+	for _, service := range s.services {
+		if err := service.Peer(ctx, p2p.Peer{Address: i.Address}); err != nil {
+			_ = s.host.Network().ClosePeer(info.ID)
+			return swarm.Address{}, err
+		}
 	}
 
 	if err := helpers.FullClose(stream); err != nil {
